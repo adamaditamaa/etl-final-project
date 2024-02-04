@@ -1,0 +1,124 @@
+version: '3'
+
+services:
+  postgres_target:
+      image: postgres:latest
+      ports:
+        - "5600:5432"  # Different host port
+      environment:
+        POSTGRES_USER: adam
+        POSTGRES_PASSWORD: Adam1234
+        POSTGRES_DB: db_prod
+      volumes:
+        - psql-new-target:/var/lib/postgresql/data
+      networks:
+        - network-project
+      healthcheck:
+        test: ["CMD", "pg_isready", "-U", "adam","-d","db_prod"]
+        interval: 5s
+        retries: 5
+      restart: always
+
+  mysql_stg_db:
+    image: mysql:5.7
+    ports:
+      - "3309:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: adam1234
+      MYSQL_DATABASE: db_stg
+      MYSQL_USER: adam
+      MYSQL_PASSWORD: Adam1234
+    volumes:
+      - mysql-new-target:/var/lib/mysql
+    networks:
+      - network-project
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "adam", "-d","db_stg", "--silent"]  # Use the correct user and password here
+      interval: 5s
+      retries: 5
+    restart: always
+
+  postgresql:
+    image: docker.io/bitnami/postgresql:14
+    volumes:
+      - 'postgresql_data:/bitnami/postgresql'
+    networks:
+      - network-project
+    environment:
+      - POSTGRESQL_DATABASE=bitnami_airflow
+      - POSTGRESQL_USERNAME=bn_airflow
+      - POSTGRESQL_PASSWORD=bitnami1
+      # ALLOW_EMPTY_PASSWORD is recommended only for development.
+      - ALLOW_EMPTY_PASSWORD=yes
+  redis:
+    image: docker.io/bitnami/redis:6.0
+    volumes:
+      - 'redis_data:/bitnami'
+    networks:
+      - network-project
+    environment:
+      # ALLOW_EMPTY_PASSWORD is recommended only for development.
+      - ALLOW_EMPTY_PASSWORD=yes
+  airflow-scheduler:
+    # TODO: to be reverted to use proper registry/distro on T39132
+    # image: docker.io/bitnami/airflow-scheduler:2
+    image: docker.io/bitnami/airflow-scheduler:2
+    environment:
+      - AIRFLOW_DATABASE_NAME=bitnami_airflow
+      - AIRFLOW_DATABASE_USERNAME=bn_airflow
+      - AIRFLOW_DATABASE_PASSWORD=bitnami1
+      - AIRFLOW_EXECUTOR=CeleryExecutor
+      - AIRFLOW_WEBSERVER_HOST=airflow
+    volumes:
+      - airflow_scheduler_data:/bitnami
+      - ./dags:/opt/bitnami/airflow/dags
+      - logs_volume:/opt/bitnami/airflow/logs
+      - ./requirements.txt:/bitnami/python/requirements.txt
+    networks:
+      - network-project
+  airflow-worker:
+    # TODO: to be reverted to use proper registry/distro on T39132
+    # image: docker.io/bitnami/airflow-worker:2
+    image: docker.io/bitnami/airflow-worker:2
+    environment:
+      - AIRFLOW_DATABASE_NAME=bitnami_airflow
+      - AIRFLOW_DATABASE_USERNAME=bn_airflow
+      - AIRFLOW_DATABASE_PASSWORD=bitnami1
+      - AIRFLOW_EXECUTOR=CeleryExecutor
+      - AIRFLOW_WEBSERVER_HOST=airflow
+    volumes:
+      - airflow_worker_data:/bitnami
+      - ./dags:/opt/bitnami/airflow/dags
+      - logs_volume:/opt/bitnami/airflow/logs
+      - ./requirements.txt:/bitnami/python/requirements.txt
+    networks:
+      - network-project
+  airflow:
+    image: docker.io/bitnami/airflow:2
+    environment:
+      - AIRFLOW_DATABASE_NAME=bitnami_airflow
+      - AIRFLOW_DATABASE_USERNAME=bn_airflow
+      - AIRFLOW_DATABASE_PASSWORD=bitnami1
+      - AIRFLOW_EXECUTOR=CeleryExecutor
+    ports:
+      - '8086:8080'
+    volumes:
+      - airflow_data:/bitnami
+      - ./dags:/opt/bitnami/airflow/dags
+      - logs_volume:/opt/bitnami/airflow/logs
+      - ./requirements.txt:/bitnami/python/requirements.txt
+    networks:
+      - network-project
+volumes:
+  airflow_scheduler_data:
+  airflow_worker_data:
+  airflow_data:
+  postgresql_data:
+  redis_data:
+  logs_volume:
+  psql-new-target:
+  mysql-new-target:
+  
+networks:
+  network-project:
+    external: true 
